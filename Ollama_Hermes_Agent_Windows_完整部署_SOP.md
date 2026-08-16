@@ -58,18 +58,18 @@ Terminal / File / Git / Python / Node / Docker
 
 ## 2.1 建議環境
 
-| 項目 | 建議 |
-|---|---|
-| OS | Windows 11 64-bit |
-| PowerShell | PowerShell 7.x |
-| RAM | 32 GB 以上 |
-| GPU | NVIDIA / AMD GPU 佳 |
-| VRAM | 16 GB 以上較適合大型 Coding Model |
-| SSD | 至少 100 GB 可用空間 |
-| Git | 最新版本 |
-| Python | Hermes Installer 會處理相依版本 |
-| Node.js | Hermes Installer 會處理相依版本 |
-| Docker | Docker Desktop，可選 |
+| 項目       | 建議                              |
+| ---------- | --------------------------------- |
+| OS         | Windows 11 64-bit                 |
+| PowerShell | PowerShell 7.x                    |
+| RAM        | 32 GB 以上                        |
+| GPU        | NVIDIA / AMD GPU 佳               |
+| VRAM       | 16 GB 以上較適合大型 Coding Model |
+| SSD        | 至少 100 GB 可用空間              |
+| Git        | 最新版本                          |
+| Python     | Hermes Installer 會處理相依版本   |
+| Node.js    | Hermes Installer 會處理相依版本   |
+| Docker     | Docker Desktop，可選              |
 
 > 模型越大，需要的 RAM / VRAM 越高。31B 等級模型不代表所有 Windows 電腦都能順暢執行。
 
@@ -127,11 +127,15 @@ D: 100 GB+
 
 # 4. 安裝 PowerShell 7
 
-如果已經有 PowerShell 7，可跳過。
+安裝 PowerShell 7
+
+```sh
+winget install --id Microsoft.PowerShell -e
+```
 
 確認：
 
-```powershell
+```sh
 pwsh --version
 ```
 
@@ -139,7 +143,7 @@ pwsh --version
 
 之後所有安裝指令，優先使用：
 
-```text
+```sh
 PowerShell 7
 ```
 
@@ -318,7 +322,7 @@ ollama serve
 例如：
 
 ```powershell
-ollama pull gemma4:31b
+ollama pull qwen2.5-coder:7b
 ```
 
 或依實際硬體選擇較小模型。
@@ -332,8 +336,8 @@ ollama list
 例如：
 
 ```text
-NAME          SIZE
-gemma4:31b    ...
+NAME                    SIZE
+qwen2.5-coder:7b     ...
 ```
 
 ---
@@ -343,7 +347,7 @@ gemma4:31b    ...
 執行：
 
 ```powershell
-ollama run gemma4:31b
+ollama run qwen2.5-coder:7b
 ```
 
 輸入：
@@ -483,7 +487,7 @@ API Key:
 留空
 
 Model:
-gemma4:31b
+qwen2.5-coder:7b
 ```
 
 Ollama 本身提供 OpenAI-compatible API。
@@ -504,10 +508,14 @@ notepad "$env:USERPROFILE\.hermes\config.yaml"
 
 ```yaml
 model:
-  default: "gemma4:31b"
-  provider: "custom"
-  base_url: "http://localhost:11434/v1"
-  context_length: 64000
+  default: qwen2.5-coder:7b
+  context_length: 65536
+  ollama_num_ctx: 65536
+  provider: custom
+  base_url: http://localhost:11434/v1
+
+agent:
+  reasoning_effort: none
 ```
 
 > 如果目前 Hermes 版本產生的 `config.yaml` 結構不同，優先使用 `hermes setup` / `hermes model`，不要直接覆蓋整份設定檔。
@@ -566,6 +574,12 @@ Terminal Tool OK
 ```powershell
 mkdir C:\HermesTest
 cd C:\HermesTest
+```
+
+設定執行專案目錄：
+
+```sh
+hermes config set terminal.cwd "C:\Users\Len\Desktop\HermesTest"
 ```
 
 啟動：
@@ -1501,4 +1515,151 @@ Ollama
 高品質 Coding Model
         +
 Tools / Skills / Memory
+```
+
+---
+
+# debug
+
+## 查誰占用 port 11434
+
+```sh
+netstat -ano | findstr :11434
+```
+
+你應該會看到類似：
+
+```sh
+TCP    127.0.0.1:11434    0.0.0.0:0    LISTENING    12345
+```
+
+最後面的：
+
+```sh
+12345
+```
+
+就是 PID。
+
+---
+
+## 查 PID 是誰
+
+假設 PID 是 12345：
+
+```sh
+Get-Process -Id 12345
+```
+
+也可以直接：
+
+```sh
+tasklist | findstr 12345
+```
+
+---
+
+## 特別檢查 Ollama 所使用 PID
+
+```sh
+Get-Process ollama* -ErrorAction SilentlyContinue
+```
+
+## 測試 Ollama 是否正常運作
+
+所以先測：
+
+```sh
+Invoke-RestMethod http://localhost:11434/api/tags
+```
+
+或者：
+
+```sh
+curl http://localhost:11434/api/tags
+```
+
+如果回傳 JSON
+
+例如：
+
+```sh
+{
+  "models": []
+}
+```
+
+或：
+
+```sh
+{
+  "models": [
+    {
+      "name": "gemma4:31b"
+    }
+  ]
+}
+```
+
+那就代表：
+
+```
+Ollama Server
+     ↓
+127.0.0.1:11434
+     ↓
+正常
+```
+
+不用再執行 ollama serve。
+
+---
+
+## 再確認 Ollama
+
+執行：
+
+```sh
+ollama list
+```
+
+以及：
+
+```sh
+ollama ps
+```
+
+---
+
+## Hermes Agent 的最低要求是 64000 tokens, context length ≥ 65536
+
+| 模型                  |     Context | RTX 3060 12GB       |
+| --------------------- | ----------: | ------------------- |
+| `qwen2.5-coder:7b`    | 可達 128K\* | ✅ 推薦             |
+| `qwen3:8b`            | 可達 128K\* | ✅                  |
+| `deepseek-coder:6.7b` |         16K | ❌ Hermes 不接受    |
+| 14B 級 Coding Model   |        64K+ | ⚠️ 可能需要 CPU/RAM |
+| 30B+                  |        64K+ | ❌ 不適合 12GB VRAM |
+
+直接修改 context_length:
+
+```sh
+hermes config set model.context_length 65536
+hermes config set model.ollama_num_ctx 65536
+```
+
+---
+
+## 查詢Hermes Agent 的實際安裝位置。
+
+請在 PowerShell 執行：
+
+```sh
+Get-Command hermes -ErrorAction SilentlyContinue | Format-List *
+```
+
+以及：
+
+```sh
+where.exe hermes
 ```
