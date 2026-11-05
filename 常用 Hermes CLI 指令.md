@@ -451,3 +451,67 @@ hermes profile use dev
    | hermes update         | 更新 Hermes      |
    | hermes update --check | 檢查更新         |
    | hermes uninstall      | 解除安裝         |
+
+# 指定模型 context
+
+建議改用 Modelfile 固定指定 64K
+請直接在 PowerShell 依序執行。
+
+1. 建立專屬模型設定
+
+```sh
+@'
+FROM qwen2.5-coder:7b
+PARAMETER num_ctx 65536
+'@ | Set-Content -Encoding ascii .\Modelfile-qwen64k
+```
+
+2. 建立新模型
+
+```sh
+ollama create qwen2.5-coder:7b-64k -f .\Modelfile-qwen64k
+```
+
+3. 確認模型設定
+
+```sh
+ollama show qwen2.5-coder:7b-64k --modelfile
+```
+
+應該看到：
+
+```sh
+PARAMETER num_ctx 65536
+```
+
+4. 啟動新模型
+
+```sh
+ollama run qwen2.5-coder:7b-64k
+```
+
+輸入：
+
+```txt
+你好
+```
+
+再開另一個 PowerShell：
+
+```sh
+ollama ps
+```
+
+預期：
+
+```sh
+NAME                       CONTEXT
+qwen2.5-coder:7b-64k       65536
+```
+
+重要：Hermes 也要同步修改
+等 Ollama 確認 64K 後，再將 Hermes 的模型名稱改為：
+
+```sh
+qwen2.5-coder:7b-64k
+```
